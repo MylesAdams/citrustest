@@ -17,12 +17,17 @@ from flask_restful import Resource, Api
 from sqlalchemy import create_engine
 import json
 
+from Languages import translate_langs
+
 app = Flask(__name__)
 api = Api(app)
 
 # from google.appengine.ext import vendor
 
 # vendor.add('lib')
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'credentials.json'
+
 
 from google.cloud import translate
 
@@ -164,7 +169,7 @@ def analyze_image(filepath):
                     else:
                         y2_o = height - 1
 
-                    data['class'] = predicted_class
+                    data['predicted_class'] = predicted_class
                     data['boundbox'] = [int(x1_o), int(
                         y1_o), int(x2_o), int(y2_o)]
 
@@ -176,9 +181,7 @@ def analyze_image(filepath):
                         "\nimg_size: " + str([height, width]) +
                         "\nclass: " + str(predicted_class + "\n"))
 
-            print(objects_json)
-
-            return objects_json
+            return objects
 
 
 @app.route('/analyze', methods=['POST'])
@@ -187,7 +190,7 @@ def analyze():
         req = request.headers
 
         file = req['filename'] + '.' + req['filetype']
-        translated_lang = req['translated_lang']
+        translated_lang = translate_langs[req['translated_lang']]
 
         with open(file, 'wb') as out:
             out.write(request.data)
@@ -195,8 +198,11 @@ def analyze():
         objects = analyze_image(file)
 
         for i in range(0, len(objects)):
-            objects[i]['translated_class'] = translation = translate_client.translate(
-                objects[i]['predicted_class'], target_language=translated_lang)
+
+            translate = translate_client.translate(
+                objects[i]['predicted_class'], translated_lang)
+
+            objects[i]['translated_class'] = translate['translatedText']
 
         objects_json = jsonify(str(objects))
 

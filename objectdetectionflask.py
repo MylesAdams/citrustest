@@ -20,10 +20,14 @@ import json
 app = Flask(__name__)
 api = Api(app)
 
-from google.appengine.ext import vendor
+# from google.appengine.ext import vendor
 
-vendor.add('lib')
+# vendor.add('lib')
 
+from google.cloud import translate
+
+
+translate_client = translate.Client()
 
 # This is needed since the notebook is stored in the object_detection folder.
 sys.path.append("..")
@@ -160,10 +164,9 @@ def analyze_image(filepath):
                     else:
                         y2_o = height - 1
 
-                    data['score'] = score
+                    data['class'] = predicted_class
                     data['boundbox'] = [int(x1_o), int(
                         y1_o), int(x2_o), int(y2_o)]
-                    data['class'] = predicted_class
 
                     objects.append(data)
 
@@ -172,8 +175,6 @@ def analyze_image(filepath):
                         "\nbb_o: " + str([x1_o, y1_o, x2_o, y2_o]) +
                         "\nimg_size: " + str([height, width]) +
                         "\nclass: " + str(predicted_class + "\n"))
-
-            objects_json = jsonify(str(objects))
 
             print(objects_json)
 
@@ -186,13 +187,20 @@ def analyze():
         req = request.headers
 
         file = req['filename'] + '.' + req['filetype']
+        translated_lang = req['translated_lang']
 
         with open(file, 'wb') as out:
             out.write(request.data)
 
-        json = analyze_image(file)
+        objects = analyze_image(file)
 
-        return json
+        for i in range(0, len(objects)):
+            objects[i]['translated_class'] = translation = translate_client.translate(
+                objects[i]['predicted_class'], target_language=translated_lang)
+
+        objects_json = jsonify(str(objects))
+
+        return objects_json
 
 
 if __name__ == '__main__':
